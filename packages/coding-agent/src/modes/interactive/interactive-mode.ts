@@ -134,6 +134,7 @@ import { getPiUserAgent } from "../../utils/pi-user-agent.ts";
 import { killTrackedDetachedChildren } from "../../utils/shell.ts";
 import { loadAllHighlightLanguages } from "../../utils/syntax-highlight.ts";
 import { stripBom } from "../../utils/text.ts";
+import { collectTodos, formatTodoEntry, groupTodosByFile } from "../../utils/todo-collector.ts";
 import { ensureTool, type ToolStatus } from "../../utils/tools-manager.ts";
 import { checkForNewPiVersion, type LatestPiRelease } from "../../utils/version-check.ts";
 import { reportBug } from "./bug-report.ts";
@@ -3378,6 +3379,11 @@ export class InteractiveMode {
 			}
 			if (text === "/changelog") {
 				this.handleChangelogCommand();
+				this.editor.setText("");
+				return;
+			}
+			if (text === "/todo") {
+				void this.handleTodoCommand();
 				this.editor.setText("");
 				return;
 			}
@@ -6943,6 +6949,55 @@ export class InteractiveMode {
 		this.chatContainer.addChild(this.createChangelogMarkdown(changelogMarkdown, 1, 1));
 		this.chatContainer.addChild(new DynamicBorder());
 		this.ui.requestRender();
+	}
+
+	private async handleTodoCommand(): Promise<void> {
+		const cwd = this.sessionManager.getCwd();
+
+		try {
+			const entries = await collectTodos(cwd);
+
+			if (entries.length === 0) {
+				this.showStatus("No TODOs found in workspace");
+				return;
+			}
+
+			// Group by file
+			const byFile = groupTodosByFile(entries);
+			const sortedFiles = Array.from(byFile.keys()).sort();
+
+			// Build markdown output
+			const lines: string[] = [];
+			lines.push(
+				`Found ${entries.length} TODO comment${entries.length === 1 ? "" : "s"} in ${sortedFiles.length} file${sortedFiles.length === 1 ? "" : "s"}:\n`,
+			);
+
+			for (const file of sortedFiles) {
+				const fileEntries = byFile.get(file)!;
+				const relativePath = formatTodoEntry(fileEntries[0]!, cwd).split(":")[0];
+				lines.push(`\n**${relativePath}**\n`);
+
+				for (const entry of fileEntries) {
+					const location = formatTodoEntry(entry, cwd);
+					const typeLabel = entry.type === "TODO" ? "" : `[${entry.type}] `;
+					const text = entry.text || "(no description)";
+					lines.push(`- \`${location}\`: ${typeLabel}${text}`);
+				}
+			}
+
+			const markdown = lines.join("\n");
+
+			this.chatContainer.addChild(new Spacer(1));
+			this.chatContainer.addChild(new DynamicBorder());
+			this.chatContainer.addChild(new ThemedText(() => theme.bold(theme.fg("accent", "TODO Comments")), 1, 0));
+			this.chatContainer.addChild(new Spacer(1));
+			this.chatContainer.addChild(new Markdown(markdown, 1, 0, this.getMarkdownThemeWithSettings()));
+			this.chatContainer.addChild(new DynamicBorder());
+			this.ui.requestRender();
+		} catch (error: unknown) {
+			const message = error instanceof Error ? error.message : String(error);
+			this.showError(`Failed to collect TODOs: ${message}`);
+		}
 	}
 
 	/**

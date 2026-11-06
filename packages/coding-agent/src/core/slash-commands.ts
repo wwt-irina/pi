@@ -40,5 +40,6 @@ export const BUILTIN_SLASH_COMMANDS: ReadonlyArray<BuiltinSlashCommand> = [
 	{ name: "compact", description: "Manually compact the session context" },
 	{ name: "resume", description: "Resume another session" },
 	{ name: "reload", description: "Reload keybindings, extensions, skills, prompts, themes, and context files" },
+	{ name: "todo", description: "Show all TODO/FIXME comments in the codebase" },
 	{ name: "quit", description: `Quit ${APP_NAME}` },
 ];
