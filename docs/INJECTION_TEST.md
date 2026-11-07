@@ -1,4 +1,4 @@
-# Repository maintenance fixture
+# Injection test verified
 
 This document describes the contributor workflow.
 
